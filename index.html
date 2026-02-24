@@ -3,86 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RPG Spark Randomizer</title>
+    <title>CSV Random Picker</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 50px auto; background-color: #f4f7f6; color: #2d3436; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        h1 { font-size: 1.5rem; margin-bottom: 20px; color: #0984e3; text-align: center; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
-        select { width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 8px; margin-bottom: 20px; outline: none; transition: border-color 0.2s; }
-        select:focus { border-color: #0984e3; }
-        button { width: 100%; padding: 15px; background: #0984e3; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: transform 0.1s, background 0.2s; }
-        button:hover { background: #74b9ff; }
-        button:active { transform: scale(0.98); }
-        .result-box { margin-top: 30px; padding: 20px; background: #f9f9f9; border-left: 5px solid #0984e3; border-radius: 4px; min-height: 60px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; text-align: center; }
-        .status { font-size: 0.75rem; text-align: center; margin-top: 10px; color: #636e72; }
+        body { font-family: 'Segoe UI', sans-serif; max-width: 650px; margin: 40px auto; background-color: #f8f9fa; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { color: #2d3436; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #0984e3; padding-bottom: 10px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        label { font-weight: bold; font-size: 0.85rem; color: #636e72; text-transform: uppercase; }
+        select { width: 100%; padding: 12px; border: 1px solid #dfe6e9; border-radius: 6px; margin-top: 5px; }
+        
+        button { width: 100%; padding: 15px; background: #0984e3; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #074b81; }
+        
+        .results-container { margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px; }
+        .result-item { background: #f1f2f6; padding: 12px 15px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #0984e3; font-weight: 500; }
+        .status { text-align: center; font-size: 0.75rem; color: #b2bec3; margin-top: 15px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h1>Random Spark</h1>
+    <h2>Random Entry Picker</h2>
     
-    <label for="categoryFilter">Select Category</label>
-    <select id="categoryFilter">
-        <option value="all">Loading data...</option>
-    </select>
-
-    <button id="pickBtn">Randomize</button>
-
-    <div class="result-box" id="result">
-        Click the button to pick an entry.
+    <div class="grid">
+        <div>
+            <label>Category</label>
+            <select id="categoryFilter">
+                <option value="all">Loading...</option>
+            </select>
+        </div>
+        <div>
+            <label>Quantity</label>
+            <select id="quantitySelect">
+                <option value="1">1 Entry</option>
+                <option value="2">2 Entries</option>
+                <option value="5">5 Entries</option>
+                <option value="10">10 Entries</option>
+            </select>
+        </div>
     </div>
+
+    <button id="pickBtn">Generate</button>
+
+    <div class="results-container" id="resultsList">
+        </div>
     
-    <div class="status" id="status">Status: Initializing...</div>
+    <div class="status" id="status">Initializing...</div>
 </div>
 
 <script>
     const CSV_URL = 'data.csv'; 
     let dataStore = [];
+    
     const filterDropdown = document.getElementById('categoryFilter');
+    const quantitySelect = document.getElementById('quantitySelect');
     const pickBtn = document.getElementById('pickBtn');
-    const resultDiv = document.getElementById('result');
+    const resultsList = document.getElementById('resultsList');
     const statusDiv = document.getElementById('status');
 
     window.addEventListener('DOMContentLoaded', () => {
         fetch(CSV_URL)
             .then(response => {
-                if (!response.ok) throw new Error("Could not find " + CSV_URL);
+                if (!response.ok) throw new Error("File not found");
                 return response.text();
             })
             .then(csvText => processCSV(csvText))
             .catch(err => {
-                statusDiv.textContent = "Error: " + err.message;
-                statusDiv.style.color = "red";
+                statusDiv.textContent = "Error: Ensure data.csv is in the same folder.";
+                statusDiv.style.color = "#d63031";
             });
     });
 
     function processCSV(csvText) {
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "");
-    const categories = new Set();
-    dataStore = [];
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "");
+        const categories = new Set();
+        dataStore = [];
 
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        
-        // Find the position of the VERY FIRST comma
-        const firstCommaIndex = line.indexOf(',');
-        
-        if (firstCommaIndex !== -1) {
-            // Everything BEFORE the first comma is the Category
-            const category = line.substring(0, firstCommaIndex).trim();
-            // Everything AFTER the first comma is the Entry (including other commas!)
-            const entry = line.substring(firstCommaIndex + 1).trim();
+        // i=1 skips the header row
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            const firstCommaIndex = line.indexOf(',');
             
-            if (category) {
-                categories.add(category);
-                dataStore.push({ category, entry });
+            if (firstCommaIndex !== -1) {
+                const category = line.substring(0, firstCommaIndex).trim();
+                const entry = line.substring(firstCommaIndex + 1).trim();
+                
+                if (category) {
+                    categories.add(category);
+                    dataStore.push({ category, entry });
+                }
             }
         }
-    }
-    // ... rest of the code for the dropdown remains the same
-}
 
         filterDropdown.innerHTML = '<option value="all">-- All Categories --</option>';
         Array.from(categories).sort().forEach(cat => {
@@ -92,23 +104,55 @@
             filterDropdown.appendChild(opt);
         });
 
-        statusDiv.textContent = `Status: ${dataStore.length} entries ready.`;
+        statusDiv.textContent = `System Ready: ${dataStore.length} items loaded.`;
     }
 
     pickBtn.addEventListener('click', () => {
         const selectedCat = filterDropdown.value;
-        const filtered = selectedCat === 'all' 
-            ? dataStore 
+        const count = parseInt(quantitySelect.value);
+        
+        // 1. Filter the data based on the selected category
+        let filtered = selectedCat === 'all' 
+            ? [...dataStore] // Create a shallow copy
             : dataStore.filter(item => item.category === selectedCat);
 
+        resultsList.innerHTML = ''; // Clear previous results
+
         if (filtered.length > 0) {
-            const randomIndex = Math.floor(Math.random() * filtered.length);
-            resultDiv.textContent = filtered[randomIndex].entry;
+            // 2. Shuffle the filtered array (Fisher-Yates Shuffle)
+            // This ensures uniqueness without complex checks
+            for (let i = filtered.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+            }
+
+            // 3. Determine how many items to show (can't show more than we have)
+            const displayCount = Math.min(count, filtered.length);
+
+            // 4. Create the elements for the UI
+            for (let i = 0; i < displayCount; i++) {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'result-item';
+                itemDiv.textContent = filtered[i].entry;
+                resultsList.appendChild(itemDiv);
+            }
+
+            // Optional: Warn the user if they asked for 10 but the category only had 4
+            if (count > filtered.length) {
+                const warning = document.createElement('div');
+                warning.style.fontSize = "0.7rem";
+                warning.style.color = "#e67e22";
+                warning.style.textAlign = "center";
+                warning.textContent = `(Only ${filtered.length} unique entries available in this category)`;
+                resultsList.appendChild(warning);
+            }
+
         } else {
-            resultDiv.textContent = "No entries available.";
+            resultsList.textContent = "No entries available for this category.";
         }
     });
+    });
 </script>
+
 </body>
 </html>
-
